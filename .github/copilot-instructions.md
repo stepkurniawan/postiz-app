@@ -110,6 +110,10 @@ logger.fatal("Database connection pool exhausted", {
 });
 ```
 
+# My configuration
+I am running this project in my NAS, with the docker compose file. 
+So normally, from my laptop in the same network as my nas, I can open the frontend using stipnas:4007. 
+
 ---
 
 For questions or unclear conventions, check the main README or ask for clarification in your PR description.
