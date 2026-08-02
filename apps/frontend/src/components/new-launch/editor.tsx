@@ -557,6 +557,7 @@ export const Editor: FC<{
     chars,
     childButton,
     comments,
+    selectedIntegration,
   } = props;
   const [id] = useState(makeId(10));
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
@@ -564,6 +565,18 @@ export const Editor: FC<{
   const toaster = useToaster();
   const editorRef = useRef<undefined | { editor: any }>(undefined);
   const [loading, setLoading] = useState(false);
+  const [generatingTitle, setGeneratingTitle] = useState(false);
+  const fetch = useFetch();
+
+  const isInstagram = useMemo(
+    () =>
+      identifier?.startsWith('instagram') ||
+      (identifier === 'global' &&
+        selectedIntegration.some(({ integration }) =>
+          integration.identifier.startsWith('instagram')
+        )),
+    [identifier, selectedIntegration]
+  );
 
   const uppy = useUppyUploader({
     onUploadSuccess: (result: any) => {
@@ -662,6 +675,66 @@ export const Editor: FC<{
   const valueWithoutHtml = useMemo(() => {
     return stripHtmlValidation('normal', props.value || '', true);
   }, [props.value]);
+
+  const generateInstagramTitle = useCallback(async () => {
+    const content = valueWithoutHtml.trim();
+    if (!content) {
+      toaster.show(
+        t(
+          'describe_reel_before_ai_title',
+          'Write a short description of your Reel first.'
+        ),
+        'warning'
+      );
+      return;
+    }
+
+    setGeneratingTitle(true);
+    try {
+      const response = await fetch('/posts/generate-instagram-title', {
+        method: 'POST',
+        body: JSON.stringify({ content }),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result.title) {
+        throw new Error(
+          typeof result.message === 'string'
+            ? result.message
+            : 'Could not generate an Instagram title.'
+        );
+      }
+
+      const editor = editorRef.current?.editor;
+      if (!editor) {
+        throw new Error('The post editor is not ready yet.');
+      }
+
+      editor
+        .chain()
+        .focus('start')
+        .insertContentAt(0, {
+          type: 'paragraph',
+          content: [{ type: 'text', text: result.title }],
+        })
+        .run();
+      toaster.show(
+        t('instagram_ai_title_added', 'AI title added to your caption.')
+      );
+    } catch (error) {
+      toaster.show(
+        error instanceof Error
+          ? error.message
+          : t(
+              'instagram_ai_title_failed',
+              'Could not generate an Instagram title.'
+            ),
+        'warning'
+      );
+    } finally {
+      setGeneratingTitle(false);
+    }
+  }, [fetch, t, toaster, valueWithoutHtml]);
 
   const addText = useCallback(
     (emoji: string) => {
@@ -815,6 +888,23 @@ export const Editor: FC<{
                       >
                         <EmojiIcon />
                       </div>
+                      {isInstagram && (
+                        <button
+                          type="button"
+                          disabled={generatingTitle}
+                          data-tooltip-id="tooltip"
+                          data-tooltip-content={t(
+                            'suggest_instagram_title',
+                            'Suggest an Instagram Reel title'
+                          )}
+                          className="select-none cursor-pointer rounded-[6px] h-[30px] px-[9px] bg-newColColor flex justify-center items-center text-[12px] font-[600] disabled:cursor-wait disabled:opacity-60"
+                          onClick={generateInstagramTitle}
+                        >
+                          {generatingTitle
+                            ? t('generating_ai_title', 'Generating…')
+                            : t('ai_title', 'AI title')}
+                        </button>
+                      )}
                       <div className="relative">
                         <div
                           className={clsx(

@@ -16,8 +16,37 @@ const VoicePrompt = z.object({
   voice: z.string(),
 });
 
+const InstagramTitlePrompt = z.object({
+  title: z.string().max(100),
+});
+
 @Injectable()
 export class OpenaiService {
+  async generateInstagramTitle(content: string) {
+    return (
+      (
+        await openai.chat.completions.parse({
+          model: 'gpt-4.1',
+          messages: [
+            {
+              role: 'system',
+              content:
+                'Suggest one short, engaging opening title for an Instagram Reel caption. Keep it under 100 characters, use the same language as the provided content, and do not use quotation marks, hashtags, or add explanations.',
+            },
+            {
+              role: 'user',
+              content,
+            },
+          ],
+          response_format: zodResponseFormat(
+            InstagramTitlePrompt,
+            'instagramTitle'
+          ),
+        })
+      ).choices[0].message.parsed?.title || ''
+    );
+  }
+
   async generateImage(prompt: string, isVertical = false) {
     // gpt-image models always return base64 (b64_json) and do not accept the
     // `response_format` parameter, unlike the deprecated dall-e-3.

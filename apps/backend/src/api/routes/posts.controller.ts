@@ -285,4 +285,18 @@ export class PostsController {
   ) {
     return this._postsService.separatePosts(body.content, body.len);
   }
+
+  @Post('/generate-instagram-title')
+  @CheckPolicies([AuthorizationActions.Create, Sections.AI])
+  async generateInstagramTitle(@Body() body: { content: string }) {
+    const content = body.content?.trim();
+    if (!content) {
+      throw new HttpException(
+        'Write a short description of your Reel first.',
+        400
+      );
+    }
+
+    return this._postsService.generateInstagramTitle(content);
+  }
 }
