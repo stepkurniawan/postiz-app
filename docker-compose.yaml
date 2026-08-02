@@ -65,8 +65,8 @@ services:
       MASTODON_URL: 'https://mastodon.social'
       MASTODON_CLIENT_ID: ''
       MASTODON_CLIENT_SECRET: ''
-      INSTAGRAM_APP_ID: ${INSTAGRAM_APP_ID}
-      INSTAGRAM_APP_SECRET: ${INSTAGRAM_APP_SECRET}
+      INSTAGRAM_APP_ID: "${INSTAGRAM_APP_ID:?INSTAGRAM_APP_ID is required}"
+      INSTAGRAM_APP_SECRET: "${INSTAGRAM_APP_SECRET:?INSTAGRAM_APP_SECRET is required}"
 
       # === OAuth & Authentik Settings
       # NEXT_PUBLIC_POSTIZ_OAUTH_DISPLAY_NAME: 'Authentik'
