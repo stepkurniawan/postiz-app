@@ -20,4 +20,7 @@ dist
 **/*.vscode
 .git
 .github
+.env
+.env.*
+!.env.example
 reports
