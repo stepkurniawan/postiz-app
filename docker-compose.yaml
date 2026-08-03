@@ -2,7 +2,7 @@ services:
   postiz:
     image: ghcr.io/gitroomhq/postiz-app:latest
     container_name: postiz
-    restart: always
+    restart: unless-stopped
     environment:
       # === Required Settings
       MAIN_URL: 'https://postiz.stepkurniawan.com'
@@ -130,7 +130,7 @@ services:
   postiz-postgres:
     image: postgres:17-alpine
     container_name: postiz-postgres
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: postiz-password
       POSTGRES_USER: postiz-user
@@ -147,7 +147,7 @@ services:
   postiz-redis:
     image: redis:7.2
     container_name: postiz-redis
-    restart: always
+    restart: unless-stopped
     healthcheck:
       test: redis-cli ping
       interval: 10s
@@ -162,6 +162,7 @@ services:
   spotlight:
     pull_policy: always
     container_name: spotlight
+    restart: unless-stopped
     ports:
       - 8969:8969/tcp
     image: ghcr.io/getsentry/spotlight:latest
@@ -174,6 +175,7 @@ services:
   temporal-elasticsearch:
     container_name: temporal-elasticsearch
     image: elasticsearch:7.17.27
+    restart: unless-stopped
     environment:
       - cluster.routing.allocation.disk.threshold_enabled=true
       - cluster.routing.allocation.disk.watermark.low=512mb
@@ -192,6 +194,7 @@ services:
   temporal-postgresql:
     container_name: temporal-postgresql
     image: postgres:16
+    restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: temporal
       POSTGRES_USER: temporal
@@ -207,6 +210,7 @@ services:
     ports:
       - '7233:7233'
     image: temporalio/auto-setup:1.28.1
+    restart: unless-stopped
     depends_on:
       - temporal-postgresql
       - temporal-elasticsearch
@@ -231,6 +235,7 @@ services:
   temporal-admin-tools:
     container_name: temporal-admin-tools
     image: temporalio/admin-tools:1.28.1-tctl-1.18.4-cli-1.4.1
+    restart: unless-stopped
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
       - TEMPORAL_CLI_ADDRESS=temporal:7233
@@ -244,6 +249,7 @@ services:
   temporal-ui:
     container_name: temporal-ui
     image: temporalio/ui:2.34.0
+    restart: unless-stopped
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
       - TEMPORAL_CORS_ORIGINS=http://127.0.0.1:3000
