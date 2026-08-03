@@ -135,6 +135,30 @@ export class IntegrationsController {
 
     await this._integrationService.updateProviderSettings(org.id, id, body);
   }
+
+  @Get('/:id/instagram-title-examples')
+  @CheckPolicies([AuthorizationActions.Create, Sections.AI])
+  getInstagramTitleExamples(
+    @GetOrgFromRequest() org: Organization,
+    @Param('id') id: string
+  ) {
+    return this._integrationService.getInstagramTitleExamples(org.id, id);
+  }
+
+  @Put('/:id/instagram-title-examples')
+  @CheckPolicies([AuthorizationActions.Create, Sections.AI])
+  updateInstagramTitleExamples(
+    @GetOrgFromRequest() org: Organization,
+    @Param('id') id: string,
+    @Body('examples') examples: string
+  ) {
+    return this._integrationService.updateInstagramTitleExamples(
+      org.id,
+      id,
+      examples
+    );
+  }
+
   @Post('/:id/nickname')
   async setNickname(
     @GetOrgFromRequest() org: Organization,

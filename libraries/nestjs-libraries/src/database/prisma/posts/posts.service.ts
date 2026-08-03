@@ -937,9 +937,22 @@ export class PostsService {
     return this._openaiService.separatePosts(content, len);
   }
 
-  async generateInstagramTitle(content: string) {
+  async generateInstagramTitle(
+    orgId: string,
+    integrationId: string,
+    content: string
+  ) {
+    const integration =
+      await this._integrationService.getInstagramIntegrationById(
+        orgId,
+        integrationId
+      );
+
     return {
-      title: await this._openaiService.generateInstagramTitle(content),
+      title: await this._openaiService.generateInstagramTitle(
+        content,
+        integration.instagramTitleExamples || undefined
+      ),
     };
   }
 

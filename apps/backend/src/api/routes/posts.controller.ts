@@ -288,15 +288,27 @@ export class PostsController {
 
   @Post('/generate-instagram-title')
   @CheckPolicies([AuthorizationActions.Create, Sections.AI])
-  async generateInstagramTitle(@Body() body: { content: string }) {
-    const content = body.content?.trim();
-    if (!content) {
+  async generateInstagramTitle(
+    @GetOrgFromRequest() org: Organization,
+    @Body('content') content: string,
+    @Body('integrationId') integrationId: string
+  ) {
+    const trimmedContent = content?.trim();
+    if (!trimmedContent) {
       throw new HttpException(
         'Write a short description of your Reel first.',
         400
       );
     }
+    const trimmedIntegrationId = integrationId?.trim();
+    if (!trimmedIntegrationId) {
+      throw new HttpException('Select an Instagram account first.', 400);
+    }
 
-    return this._postsService.generateInstagramTitle(content);
+    return this._postsService.generateInstagramTitle(
+      org.id,
+      trimmedIntegrationId,
+      trimmedContent
+    );
   }
 }

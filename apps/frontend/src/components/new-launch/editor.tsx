@@ -67,8 +67,11 @@ import {
   DelayIcon,
 } from '@gitroom/frontend/components/ui/icons';
 import { DelayComponent } from '@gitroom/frontend/components/new-launch/delay.component';
+import useSWR from 'swr';
 
 const MAX_UPLOAD_SIZE = 1024 * 1024 * 1024; // 1 GB
+const MAX_TITLE_EXAMPLES_LENGTH = 5000;
+const INSTAGRAM_PROVIDERS = new Set(['instagram', 'instagram-standalone']);
 
 const InterceptBoldShortcut = Extension.create({
   name: 'preventBoldWithUnderline',
@@ -447,6 +450,7 @@ export const EditorWrapper: FC<{
                 autoComplete={canEdit}
                 validateChars={true}
                 identifier={internalFromAll?.identifier || 'global'}
+                integrationId={internal?.integration.id}
                 totalChars={totalChars}
                 appendImages={appendImages(index)}
                 dummy={dummy}
@@ -539,6 +543,7 @@ export const Editor: FC<{
   validateChars?: boolean;
   comments: boolean | 'no-media';
   identifier?: string;
+  integrationId?: string;
   totalChars?: number;
   selectedIntegration: SelectedIntegrations[];
   dummy: boolean;
@@ -552,6 +557,7 @@ export const Editor: FC<{
     setImages,
     num,
     identifier,
+    integrationId,
     appendImages,
     dummy,
     chars,
@@ -566,17 +572,64 @@ export const Editor: FC<{
   const editorRef = useRef<undefined | { editor: any }>(undefined);
   const [loading, setLoading] = useState(false);
   const [generatingTitle, setGeneratingTitle] = useState(false);
+  const [showTitleExamples, setShowTitleExamples] = useState(false);
+  const [titleExamples, setTitleExamples] = useState('');
+  const [titleExamplesIntegrationId, setTitleExamplesIntegrationId] =
+    useState('');
+  const [savingTitleExamples, setSavingTitleExamples] = useState(false);
   const fetch = useFetch();
 
-  const isInstagram = useMemo(
+  const instagramIntegrations = useMemo(
     () =>
-      identifier?.startsWith('instagram') ||
-      (identifier === 'global' &&
-        selectedIntegration.some(({ integration }) =>
-          integration.identifier.startsWith('instagram')
-        )),
-    [identifier, selectedIntegration]
+      selectedIntegration.filter(
+        ({ integration }) =>
+          INSTAGRAM_PROVIDERS.has(integration.identifier) &&
+          (identifier === 'global' || integration.id === integrationId)
+      ),
+    [identifier, integrationId, selectedIntegration]
   );
+
+  const activeInstagramIntegration = useMemo(
+    () =>
+      instagramIntegrations.find(
+        ({ integration }) => integration.id === titleExamplesIntegrationId
+      ) || instagramIntegrations[0],
+    [instagramIntegrations, titleExamplesIntegrationId]
+  );
+
+  const titleExamplesEndpoint =
+    showTitleExamples && activeInstagramIntegration
+      ? `/integrations/${activeInstagramIntegration.integration.id}/instagram-title-examples`
+      : null;
+  const loadTitleExamples = useCallback(
+    async (endpoint: string) => {
+      const response = await fetch(endpoint);
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          typeof result.message === 'string'
+            ? result.message
+            : 'Could not load title examples.'
+        );
+      }
+      return result as { examples: string };
+    },
+    [fetch]
+  );
+  const {
+    data: savedTitleExamples,
+    error: titleExamplesError,
+    isLoading: loadingTitleExamples,
+    mutate: mutateTitleExamples,
+  } = useSWR(titleExamplesEndpoint, loadTitleExamples, {
+    revalidateOnFocus: false,
+  });
+
+  useEffect(() => {
+    setTitleExamples(savedTitleExamples?.examples || '');
+  }, [titleExamplesEndpoint, savedTitleExamples?.examples]);
+
+  const isInstagram = instagramIntegrations.length > 0;
 
   const uppy = useUppyUploader({
     onUploadSuccess: (result: any) => {
@@ -688,12 +741,22 @@ export const Editor: FC<{
       );
       return;
     }
+    if (!activeInstagramIntegration) {
+      toaster.show(
+        t('select_instagram_account', 'Select an Instagram account first.'),
+        'warning'
+      );
+      return;
+    }
 
     setGeneratingTitle(true);
     try {
       const response = await fetch('/posts/generate-instagram-title', {
         method: 'POST',
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({
+          content,
+          integrationId: activeInstagramIntegration.integration.id,
+        }),
       });
       const result = await response.json();
 
@@ -734,7 +797,51 @@ export const Editor: FC<{
     } finally {
       setGeneratingTitle(false);
     }
-  }, [fetch, t, toaster, valueWithoutHtml]);
+  }, [activeInstagramIntegration, fetch, t, toaster, valueWithoutHtml]);
+
+  const saveTitleExamples = useCallback(async () => {
+    if (!activeInstagramIntegration) {
+      return;
+    }
+
+    setSavingTitleExamples(true);
+    try {
+      const response = await fetch(
+        `/integrations/${activeInstagramIntegration.integration.id}/instagram-title-examples`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({ examples: titleExamples }),
+        }
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          typeof result.message === 'string'
+            ? result.message
+            : 'Could not save title examples.'
+        );
+      }
+
+      await mutateTitleExamples(result, { revalidate: false });
+      toaster.show(t('title_examples_saved', 'Title examples saved.'));
+    } catch (error) {
+      toaster.show(
+        error instanceof Error
+          ? error.message
+          : t('title_examples_save_failed', 'Could not save title examples.'),
+        'warning'
+      );
+    } finally {
+      setSavingTitleExamples(false);
+    }
+  }, [
+    activeInstagramIntegration,
+    fetch,
+    mutateTitleExamples,
+    t,
+    titleExamples,
+    toaster,
+  ]);
 
   const addText = useCallback(
     (emoji: string) => {
@@ -889,21 +996,116 @@ export const Editor: FC<{
                         <EmojiIcon />
                       </div>
                       {isInstagram && (
-                        <button
-                          type="button"
-                          disabled={generatingTitle}
-                          data-tooltip-id="tooltip"
-                          data-tooltip-content={t(
-                            'suggest_instagram_title',
-                            'Suggest an Instagram Reel title'
+                        <div className="relative flex gap-[5px]">
+                          <button
+                            type="button"
+                            disabled={generatingTitle}
+                            data-tooltip-id="tooltip"
+                            data-tooltip-content={t(
+                              'suggest_instagram_title',
+                              'Suggest an Instagram Reel title'
+                            )}
+                            className="select-none cursor-pointer rounded-[6px] h-[30px] px-[9px] bg-newColColor flex justify-center items-center text-[12px] font-[600] disabled:cursor-wait disabled:opacity-60"
+                            onClick={generateInstagramTitle}
+                          >
+                            {generatingTitle
+                              ? t('generating_ai_title', 'Generating…')
+                              : t('ai_title', 'AI title')}
+                          </button>
+                          <button
+                            type="button"
+                            aria-expanded={showTitleExamples}
+                            className="select-none cursor-pointer rounded-[6px] h-[30px] px-[9px] bg-newColColor flex justify-center items-center text-[12px] font-[600]"
+                            onClick={() =>
+                              setShowTitleExamples(!showTitleExamples)
+                            }
+                          >
+                            {t('title_examples', 'Title examples')}
+                          </button>
+                          {showTitleExamples && (
+                            <div className="absolute z-[500] bottom-[35px] end-0 w-[320px] rounded-[8px] bg-newSettings p-[12px] shadow-lg">
+                              <label className="mb-[8px] block text-[13px] font-[600]">
+                                {t(
+                                  'past_title_examples',
+                                  'Past title examples'
+                                )}
+                              </label>
+                              {instagramIntegrations.length > 1 && (
+                                <select
+                                  value={
+                                    activeInstagramIntegration?.integration
+                                      .id || ''
+                                  }
+                                  className="mb-[8px] w-full rounded-[6px] bg-newBgColorInner p-[8px] text-[13px] outline-none"
+                                  onChange={(event) =>
+                                    setTitleExamplesIntegrationId(
+                                      event.target.value
+                                    )
+                                  }
+                                >
+                                  {instagramIntegrations.map(
+                                    ({ integration }) => (
+                                      <option
+                                        key={integration.id}
+                                        value={integration.id}
+                                      >
+                                        {integration.name}
+                                      </option>
+                                    )
+                                  )}
+                                </select>
+                              )}
+                              <textarea
+                                value={titleExamples}
+                                disabled={
+                                  loadingTitleExamples || !!titleExamplesError
+                                }
+                                maxLength={MAX_TITLE_EXAMPLES_LENGTH}
+                                rows={7}
+                                placeholder={t(
+                                  'past_title_examples_placeholder',
+                                  'Paste past titles, one per line.'
+                                )}
+                                className="w-full resize-y rounded-[6px] bg-newBgColorInner p-[10px] text-[13px] outline-none"
+                                onChange={(event) =>
+                                  setTitleExamples(
+                                    event.target.value.slice(
+                                      0,
+                                      MAX_TITLE_EXAMPLES_LENGTH
+                                    )
+                                  )
+                                }
+                              />
+                              {titleExamplesError && (
+                                <div className="mt-[6px] text-[11px] text-red-400">
+                                  {t(
+                                    'title_examples_load_failed',
+                                    'Could not load saved examples.'
+                                  )}
+                                </div>
+                              )}
+                              <div className="mt-[8px] flex items-center gap-[8px]">
+                                <button
+                                  type="button"
+                                  disabled={
+                                    savingTitleExamples ||
+                                    loadingTitleExamples ||
+                                    !!titleExamplesError
+                                  }
+                                  className="rounded-[6px] bg-[#612BD3] px-[12px] py-[7px] text-[12px] font-[600] text-white disabled:cursor-wait disabled:opacity-60"
+                                  onClick={saveTitleExamples}
+                                >
+                                  {savingTitleExamples
+                                    ? t('saving_title_examples', 'Saving…')
+                                    : t('save_title_examples', 'Save examples')}
+                                </button>
+                                <div className="text-[11px] opacity-70">
+                                  {activeInstagramIntegration?.integration.name}
+                                </div>
+                              </div>
+                            </div>
                           )}
-                          className="select-none cursor-pointer rounded-[6px] h-[30px] px-[9px] bg-newColColor flex justify-center items-center text-[12px] font-[600] disabled:cursor-wait disabled:opacity-60"
-                          onClick={generateInstagramTitle}
-                        >
-                          {generatingTitle
-                            ? t('generating_ai_title', 'Generating…')
-                            : t('ai_title', 'AI title')}
-                        </button>
+                        </div>
                       )}
                       <div className="relative">
                         <div

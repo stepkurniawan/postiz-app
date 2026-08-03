@@ -28,6 +28,8 @@ import { TemporalService } from 'nestjs-temporal-core';
 
 dayjs.extend(utc);
 
+const INSTAGRAM_PROVIDERS = new Set(['instagram', 'instagram-standalone']);
+
 @Injectable()
 export class IntegrationService {
   private storage = UploadFactory.createStorage();
@@ -78,6 +80,45 @@ export class IntegrationService {
       id,
       additionalSettings
     );
+  }
+
+  async getInstagramIntegrationById(org: string, id: string) {
+    const integration = await this.getIntegrationById(org, id);
+    if (
+      !integration ||
+      !INSTAGRAM_PROVIDERS.has(integration.providerIdentifier)
+    ) {
+      throw new HttpException(
+        'Instagram account not found',
+        HttpStatus.NOT_FOUND
+      );
+    }
+
+    return integration;
+  }
+
+  async getInstagramTitleExamples(org: string, id: string) {
+    const integration = await this.getInstagramIntegrationById(org, id);
+    return { examples: integration.instagramTitleExamples || '' };
+  }
+
+  async updateInstagramTitleExamples(
+    org: string,
+    id: string,
+    examples: string
+  ) {
+    if (typeof examples !== 'string') {
+      throw new HttpException('Invalid title examples', HttpStatus.BAD_REQUEST);
+    }
+
+    await this.getInstagramIntegrationById(org, id);
+    const updated =
+      await this._integrationRepository.updateInstagramTitleExamples(
+        org,
+        id,
+        examples.slice(0, 5000)
+      );
+    return { examples: updated.instagramTitleExamples || '' };
   }
 
   checkPreviousConnections(org: string, id: string) {

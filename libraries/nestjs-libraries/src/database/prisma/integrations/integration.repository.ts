@@ -98,6 +98,21 @@ export class IntegrationRepository {
     });
   }
 
+  updateInstagramTitleExamples(org: string, id: string, examples: string) {
+    return this._integration.model.integration.update({
+      where: {
+        id,
+        organizationId: org,
+      },
+      data: {
+        instagramTitleExamples: examples,
+      },
+      select: {
+        instagramTitleExamples: true,
+      },
+    });
+  }
+
   async setTimes(org: string, id: string, times: IntegrationTimeDto) {
     return this._integration.model.integration.update({
       select: {
